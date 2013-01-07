@@ -14,6 +14,7 @@ Prerequisite
     - FUSE library >= 2.8.0
   - python-llfuse
     - Debian/Ubuntu: `sudo apt-get install python-llfuse`
+  - p4 command-line utility
 
 
 Usage
