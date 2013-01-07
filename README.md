@@ -19,9 +19,9 @@ Prerequisite
 Usage
 =====
 
-  Mount:
+Mount:
 ```bash
-./p4fuse.py <mountpoint>
+./p4fuse.py <mountpoint> &
 ```
 
 Unmount:
