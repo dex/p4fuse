@@ -51,19 +51,18 @@ class P4Operations(llfuse.Operations):
                 self.cache.get(inode_p)['child'][name] = inode
             except:
                 break
-        #os.close(pipe)
         # files
-        pipe = os.popen('p4 -G files ' + self.gen_path(inode_p) + '/*', 'r')
+        pipe = os.popen('p4 -G filelog ' + self.gen_path(inode_p) + '/*', 'r')
         while True:
             try:
                 rv = marshal.load(pipe)
                 name = rv['depotFile'].split('/')[-1]
+                size = int(rv.get('fileSize0', '0'))
                 inode = self.get_next_inode()
-                self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': False, 'child': {}}
+                self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': False, 'size': size}
                 self.cache.get(inode_p)['child'][name] = inode
             except:
                 break
-        #os.close(pipe)
 
     
     def lookup(self, inode_p, name):
@@ -82,13 +81,14 @@ class P4Operations(llfuse.Operations):
         entry.attr_timeout = 300
         if self.cache.get(inode)['is_dir']:
             entry.st_mode = stat.S_IFDIR | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+            entry.st_size = 4096
         else:
             entry.st_mode = stat.S_IFREG | stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
+            entry.st_size = self.cache.get(inode)['size']
         entry.st_nlink = 1
         entry.st_uid = os.getuid() 
         entry.st_gid = os.getgid() 
         entry.st_rdev = 0
-        entry.st_size = 0
         entry.st_blksize = 512
         entry.st_blocks = 1
         entry.st_atime = time() 
@@ -114,12 +114,14 @@ class P4Operations(llfuse.Operations):
         return True
 
     def read(self, fh, offset, length):
-        depot_path = self.gen_path(fh)
-        pipe = os.popen('p4 -G print ' + depot_path, 'r')
-        if (marshal.load(pipe)['code'] == 'error'):
-            data = ''
-        else:
-            data = marshal.load(pipe)['data']
+        pipe = os.popen('p4 -G print ' + self.gen_path(fh), 'r')
+        data = ''
+        if (marshal.load(pipe)['code'] != 'error'):
+            try:
+                while True:
+                    data += marshal.load(pipe)['data']
+            except EOFError:
+                pass
         return data[offset:offset+length]
 
 if __name__ == '__main__':

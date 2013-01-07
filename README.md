@@ -8,5 +8,6 @@ This is a practice of use of python-llfuse. And it is only used to list director
 TODO
 ====
 
-1. Show the correct size and file type.
+1. Show the correct file atime
 2. Implement read operation
+3. Show the correct atime,mtime and ctime
