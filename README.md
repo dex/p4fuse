@@ -34,4 +34,5 @@ ToDo
 ====
 
   1. Show the correct atime,mtime and ctime
-  2. Login process
+  2. Login prompt for expired ticket
+  3. Cache management
