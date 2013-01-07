@@ -116,12 +116,12 @@ class P4Operations(llfuse.Operations):
     def read(self, fh, offset, length):
         pipe = os.popen('p4 -G print ' + self.gen_path(fh), 'r')
         data = ''
-        if (marshal.load(pipe)['code'] != 'error'):
-            try:
+        try:
+            if (marshal.load(pipe)['code'] != 'error'):
                 while True:
                     data += marshal.load(pipe)['data']
-            except EOFError:
-                pass
+        except EOFError:
+            pass
         return data[offset:offset+length]
 
 if __name__ == '__main__':
