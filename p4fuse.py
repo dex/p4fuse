@@ -107,7 +107,21 @@ class P4Operations(llfuse.Operations):
             if v > off:
                 yield (k, self.getattr(v), v)
 
-                    
+    def open(self, inode, flags):
+        return inode
+
+    def access(self, inode, mode, ctx):
+        return True
+
+    def read(self, fh, offset, length):
+        depot_path = self.gen_path(fh)
+        pipe = os.popen('p4 -G print ' + depot_path, 'r')
+        if (marshal.load(pipe)['code'] == 'error'):
+            data = ''
+        else:
+            data = marshal.load(pipe)['data']
+        return data[offset:offset+length]
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         raise SystemExit('Usage: %s <mountpoint>' % sys.argv[0])
