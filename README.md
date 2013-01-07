@@ -6,24 +6,32 @@ A FUSE file system for P4
 This is a practice of use of python-llfuse. And it is only used to list directories and files in perforce depot.
 
 
-prerequisite
+Prerequisite
 ============
 
-a. FUSE supprot in kernel (fuse.ko)
-b. python-llfuse
+  - FUSE supprot (For Linux)
+    - Kernel >= 2.6.26
+    - FUSE library >= 2.8.0
+  - python-llfuse
+    - Debian/Ubuntu: `sudo apt-get install python-llfuse`
 
-usage
+
+Usage
 =====
 
-Mount:
-  ./p4fuse.py <mountpoint>
+  Mount:
+```bash
+./p4fuse.py <mountpoint>
+```
 
 Unmount:
-  fusermount -u [-z] <mountpoint>
+```bash
+fusermount -u [-z] <mountpoint>
+```
 
 
-TODO
+ToDo
 ====
 
-1. Show the correct atime,mtime and ctime
-2. Login process
+  1. Show the correct atime,mtime and ctime
+  2. Login process
