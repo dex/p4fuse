@@ -11,10 +11,10 @@ from time import time
 from llfuse import FUSEError
 
 class P4Operations(llfuse.Operations):
-    def __init__(self):
+    def __init__(self, p4bin='/usr/local/bin/p4', p4root='//depot'):
         super(llfuse.Operations, self).__init__()
-        self.p4bin = '/usr/local/bin/p4'
-        self.p4root = '//depot'
+        self.p4bin = p4bin
+        self.p4root = p4root
         self.cache = { llfuse.ROOT_INODE: {'inode': llfuse.ROOT_INODE, 'inode_p': llfuse.ROOT_INODE, 'name': '..', 'is_dir': True, 'child': {}} }
         self.last_inode = llfuse.ROOT_INODE;
 
@@ -34,14 +34,14 @@ class P4Operations(llfuse.Operations):
 
     def scan_dir(self, inode_p):
         if not self.cache.get(inode_p)['is_dir']:
-            return
+            return False
         if len(self.cache.get(inode_p)['child']) != 0:
-            return
+            return False
         # . and ..
         self.cache.get(inode_p)['child']['.'] = inode_p
         self.cache.get(inode_p)['child']['..'] = self.cache.get(inode_p)['inode_p']
         # dirs
-        pipe = os.popen('p4 -G dirs ' + self.gen_path(inode_p) + '/*', 'r')
+        pipe = os.popen(self.p4bin + ' -G dirs ' + self.gen_path(inode_p) + '/*', 'r')
         while True:
             try:
                 rv = marshal.load(pipe)
@@ -52,7 +52,7 @@ class P4Operations(llfuse.Operations):
             except:
                 break
         # files
-        pipe = os.popen('p4 -G filelog ' + self.gen_path(inode_p) + '/*', 'r')
+        pipe = os.popen(self.p4bin + ' -G filelog ' + self.gen_path(inode_p) + '/*', 'r')
         while True:
             try:
                 rv = marshal.load(pipe)
@@ -63,6 +63,7 @@ class P4Operations(llfuse.Operations):
                 self.cache.get(inode_p)['child'][name] = inode
             except:
                 break
+        return True
 
     
     def lookup(self, inode_p, name):
@@ -114,7 +115,7 @@ class P4Operations(llfuse.Operations):
         return True
 
     def read(self, fh, offset, length):
-        pipe = os.popen('p4 -G print ' + self.gen_path(fh), 'r')
+        pipe = os.popen(self.p4bin + ' -G print ' + self.gen_path(fh), 'r')
         data = ''
         try:
             if (marshal.load(pipe)['code'] != 'error'):
