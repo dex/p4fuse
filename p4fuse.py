@@ -7,13 +7,32 @@ import llfuse
 import errno
 import stat
 import marshal
+import subprocess
 from time import time
 from llfuse import FUSEError
+
+class P4Command(object):
+    def __init__(self, p4bin):
+        self.p4bin = p4bin
+    
+    def do_dirs(self, path):
+        if path[-2:] != '/*':
+            path += '/*'
+        return subprocess.Popen([self.p4bin, '-G', 'dirs', path], stdout=subprocess.PIPE).stdout
+
+    def do_filelog(self, path):
+        if path[-2:] != '/*':
+            path += '/*'
+        return subprocess.Popen([self.p4bin, '-G', 'filelog', path], stdout=subprocess.PIPE).stdout
+
+    def do_print(self, path):
+        return subprocess.Popen([self.p4bin, '-G', 'print', path], stdout=subprocess.PIPE).stdout
+
 
 class P4Operations(llfuse.Operations):
     def __init__(self, p4bin='/usr/local/bin/p4', p4root='//depot'):
         super(llfuse.Operations, self).__init__()
-        self.p4bin = p4bin
+        self.p4cmd = P4Command(p4bin)
         self.p4root = p4root
         self.cache = { llfuse.ROOT_INODE: {'inode': llfuse.ROOT_INODE, 'inode_p': llfuse.ROOT_INODE, 'name': '..', 'is_dir': True, 'child': {}} }
         self.last_inode = llfuse.ROOT_INODE;
@@ -22,7 +41,7 @@ class P4Operations(llfuse.Operations):
         self.last_inode += 1
         return self.last_inode
 
-    def gen_path(self, inode):
+    def gen_depot_path(self, inode):
         path = ""
         while inode != llfuse.ROOT_INODE:
             try:
@@ -41,7 +60,7 @@ class P4Operations(llfuse.Operations):
         self.cache.get(inode_p)['child']['.'] = inode_p
         self.cache.get(inode_p)['child']['..'] = self.cache.get(inode_p)['inode_p']
         # dirs
-        pipe = os.popen(self.p4bin + ' -G dirs ' + self.gen_path(inode_p) + '/*', 'r')
+        pipe = self.p4cmd.do_dirs(self.gen_depot_path(inode_p))
         while True:
             try:
                 rv = marshal.load(pipe)
@@ -52,7 +71,7 @@ class P4Operations(llfuse.Operations):
             except:
                 break
         # files
-        pipe = os.popen(self.p4bin + ' -G filelog ' + self.gen_path(inode_p) + '/*', 'r')
+        pipe = self.p4cmd.do_filelog(self.gen_depot_path(inode_p))
         while True:
             try:
                 rv = marshal.load(pipe)
@@ -115,7 +134,7 @@ class P4Operations(llfuse.Operations):
         return True
 
     def read(self, fh, offset, length):
-        pipe = os.popen(self.p4bin + ' -G print ' + self.gen_path(fh), 'r')
+        pipe = self.p4cmd.do_print(self.gen_depot_path(fh))
         data = ''
         try:
             if (marshal.load(pipe)['code'] != 'error'):
