@@ -17,8 +17,8 @@ class P4Command(object):
         self.p4bin = p4bin
     
     @contextmanager
-    def p4_popen(*args):
-        pipe = subprocess.Popen(args[1:], stdout=subprocess.PIPE).stdout
+    def p4_popen(self, *args):
+        pipe = subprocess.Popen([self.p4bin, '-G'] + list(args), stdout=subprocess.PIPE).stdout
         try:
             yield pipe
         except EOFError:
@@ -29,19 +29,19 @@ class P4Command(object):
     def do_dirs(self, path):
         if path[-2:] != '/*':
             path += '/*'
-        with self.p4_popen(self.p4bin, '-G', 'dirs', path) as pipe:
+        with self.p4_popen('dirs', path) as pipe:
             while True:
                 yield marshal.load(pipe)
 
     def do_filelog(self, path):
         if path[-2:] != '/*':
             path += '/*'
-        with self.p4_popen(self.p4bin, '-G', 'filelog', path) as pipe:
+        with self.p4_popen('filelog', path) as pipe:
             while True:
                 yield marshal.load(pipe)
 
     def do_print(self, path):
-        with self.p4_popen(self.p4bin, '-G', 'print', path) as pipe:
+        with self.p4_popen('print', path) as pipe:
             if marshal.load(pipe)['code'] == 'error':
                 raise EOFError
             while True:
