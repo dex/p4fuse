@@ -30,6 +30,11 @@ class P4Command(object):
         if path[-2:] != '/*':
             path += '/*'
         with self.p4_popen('dirs', path) as pipe:
+            data = marshal.load(pipe)
+            if data['code'] == 'error':
+                raise EOFError
+            else:
+                yield data
             while True:
                 yield marshal.load(pipe)
 
@@ -37,6 +42,11 @@ class P4Command(object):
         if path[-2:] != '/*':
             path += '/*'
         with self.p4_popen('filelog', path) as pipe:
+            data = marshal.load(pipe)
+            if data['code'] == 'error':
+                raise EOFError
+            else:
+                yield data
             while True:
                 yield marshal.load(pipe)
 
@@ -62,11 +72,8 @@ class P4Operations(llfuse.Operations):
     def gen_depot_path(self, inode):
         path = ""
         while inode != llfuse.ROOT_INODE:
-            try:
-                path = '/' + self.cache.get(inode)['name'] + path
-                inode = self.cache.get(inode)['inode_p']
-            except:
-                raise
+            path = '/' + self.cache.get(inode)['name'] + path
+            inode = self.cache.get(inode)['inode_p']
         return self.p4root + path
 
     def scan_dir(self, inode_p):
