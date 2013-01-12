@@ -10,24 +10,42 @@ import marshal
 import subprocess
 from time import time
 from llfuse import FUSEError
+from contextlib import contextmanager
 
 class P4Command(object):
     def __init__(self, p4bin):
         self.p4bin = p4bin
     
+    @contextmanager
+    def p4_popen(*args):
+        pipe = subprocess.Popen(args[1:], stdout=subprocess.PIPE).stdout
+        try:
+            yield pipe
+        except EOFError:
+            raise StopIteration
+        finally:
+            pipe.close()
+
     def do_dirs(self, path):
         if path[-2:] != '/*':
             path += '/*'
-        return subprocess.Popen([self.p4bin, '-G', 'dirs', path], stdout=subprocess.PIPE).stdout
+        with self.p4_popen(self.p4bin, '-G', 'dirs', path) as pipe:
+            while True:
+                yield marshal.load(pipe)
 
     def do_filelog(self, path):
         if path[-2:] != '/*':
             path += '/*'
-        return subprocess.Popen([self.p4bin, '-G', 'filelog', path], stdout=subprocess.PIPE).stdout
+        with self.p4_popen(self.p4bin, '-G', 'filelog', path) as pipe:
+            while True:
+                yield marshal.load(pipe)
 
     def do_print(self, path):
-        return subprocess.Popen([self.p4bin, '-G', 'print', path], stdout=subprocess.PIPE).stdout
-
+        with self.p4_popen(self.p4bin, '-G', 'print', path) as pipe:
+            if marshal.load(pipe)['code'] == 'error':
+                raise EOFError
+            while True:
+                yield marshal.load(pipe)
 
 class P4Operations(llfuse.Operations):
     def __init__(self, p4bin='/usr/local/bin/p4', p4root='//depot'):
@@ -60,28 +78,18 @@ class P4Operations(llfuse.Operations):
         self.cache.get(inode_p)['child']['.'] = inode_p
         self.cache.get(inode_p)['child']['..'] = self.cache.get(inode_p)['inode_p']
         # dirs
-        pipe = self.p4cmd.do_dirs(self.gen_depot_path(inode_p))
-        while True:
-            try:
-                rv = marshal.load(pipe)
-                name = rv['dir'].split('/')[-1]
-                inode = self.get_next_inode()
-                self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': True, 'child': {}}
-                self.cache.get(inode_p)['child'][name] = inode
-            except:
-                break
+        for rv in self.p4cmd.do_dirs(self.gen_depot_path(inode_p)):
+            name = rv['dir'].split('/')[-1]
+            inode = self.get_next_inode()
+            self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': True, 'child': {}}
+            self.cache.get(inode_p)['child'][name] = inode
         # files
-        pipe = self.p4cmd.do_filelog(self.gen_depot_path(inode_p))
-        while True:
-            try:
-                rv = marshal.load(pipe)
-                name = rv['depotFile'].split('/')[-1]
-                size = int(rv.get('fileSize0', '0'))
-                inode = self.get_next_inode()
-                self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': False, 'size': size}
-                self.cache.get(inode_p)['child'][name] = inode
-            except:
-                break
+        for rv in self.p4cmd.do_filelog(self.gen_depot_path(inode_p)):
+            name = rv['depotFile'].split('/')[-1]
+            size = int(rv.get('fileSize0', '0'))
+            inode = self.get_next_inode()
+            self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': False, 'size': size}
+            self.cache.get(inode_p)['child'][name] = inode
         return True
 
     
@@ -134,14 +142,9 @@ class P4Operations(llfuse.Operations):
         return True
 
     def read(self, fh, offset, length):
-        pipe = self.p4cmd.do_print(self.gen_depot_path(fh))
         data = ''
-        try:
-            if (marshal.load(pipe)['code'] != 'error'):
-                while True:
-                    data += marshal.load(pipe)['data']
-        except EOFError:
-            pass
+        for rv in self.p4cmd.do_print(self.gen_depot_path(fh)):
+            data += rv['data']
         return data[offset:offset+length]
 
 if __name__ == '__main__':
