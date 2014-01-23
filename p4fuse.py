@@ -15,7 +15,7 @@ from contextlib import contextmanager
 class P4Command(object):
     def __init__(self, p4bin):
         self.p4bin = p4bin
-    
+
     @contextmanager
     def p4_popen(self, *args):
         pipe = subprocess.Popen([self.p4bin, '-G'] + list(args), stdout=subprocess.PIPE).stdout
@@ -62,7 +62,15 @@ class P4Operations(llfuse.Operations):
         super(llfuse.Operations, self).__init__()
         self.p4cmd = P4Command(p4bin)
         self.p4root = p4root
-        self.cache = { llfuse.ROOT_INODE: {'inode': llfuse.ROOT_INODE, 'inode_p': llfuse.ROOT_INODE, 'name': '..', 'is_dir': True, 'child': {}} }
+        self.cache = {
+                llfuse.ROOT_INODE: {
+                    'inode'   : llfuse.ROOT_INODE,
+                    'inode_p' : llfuse.ROOT_INODE,
+                    'name'    : '..',
+                    'is_dir'  : True,
+                    'child'   : {}
+                    }
+            }
         self.last_inode = llfuse.ROOT_INODE;
 
     def get_next_inode(self):
@@ -88,18 +96,29 @@ class P4Operations(llfuse.Operations):
         for rv in self.p4cmd.do_dirs(self.gen_depot_path(inode_p)):
             name = rv['dir'].split('/')[-1]
             inode = self.get_next_inode()
-            self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': True, 'child': {}}
+            self.cache[inode] = {
+                    'inode'   : inode,
+                    'inode_p' : inode_p,
+                    'name'    : name,
+                    'is_dir'  : True,
+                    'child'   : {}
+                    }
             self.cache.get(inode_p)['child'][name] = inode
         # files
         for rv in self.p4cmd.do_filelog(self.gen_depot_path(inode_p)):
             name = rv['depotFile'].split('/')[-1]
             size = int(rv.get('fileSize0', '0'))
             inode = self.get_next_inode()
-            self.cache[inode] = {'inode':inode, 'inode_p': inode_p, 'name': name, 'is_dir': False, 'size': size}
+            self.cache[inode] = {
+                    'inode'   : inode,
+                    'inode_p' : inode_p,
+                    'name'    : name,
+                    'is_dir'  : False,
+                    'size'    : size
+                    }
             self.cache.get(inode_p)['child'][name] = inode
         return True
 
-    
     def lookup(self, inode_p, name):
         self.scan_dir(inode_p)
         try:
@@ -115,20 +134,23 @@ class P4Operations(llfuse.Operations):
         entry.entry_timeout = 300
         entry.attr_timeout = 300
         if self.cache.get(inode)['is_dir']:
-            entry.st_mode = stat.S_IFDIR | stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+            entry.st_mode = stat.S_IFDIR | stat.S_IRUSR | stat.S_IWUSR | \
+                    stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | \
+                    stat.S_IROTH | stat.S_IXOTH
             entry.st_size = 4096
         else:
-            entry.st_mode = stat.S_IFREG | stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
+            entry.st_mode = stat.S_IFREG | stat.S_IRUSR | stat.S_IWUSR | \
+                    stat.S_IRGRP | stat.S_IROTH
             entry.st_size = self.cache.get(inode)['size']
-        entry.st_nlink = 1
-        entry.st_uid = os.getuid() 
-        entry.st_gid = os.getgid() 
-        entry.st_rdev = 0
+        entry.st_nlink   = 1
+        entry.st_uid     = os.getuid()
+        entry.st_gid     = os.getgid()
+        entry.st_rdev    = 0
         entry.st_blksize = 512
-        entry.st_blocks = 1
-        entry.st_atime = time() 
-        entry.st_mtime = time()
-        entry.st_ctime = time()
+        entry.st_blocks  = 1
+        entry.st_atime   = time()
+        entry.st_mtime   = time()
+        entry.st_ctime   = time()
         return entry
 
     def opendir(self, inode):
